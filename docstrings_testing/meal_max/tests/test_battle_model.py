@@ -1,101 +1,202 @@
 import pytest
-
 from meal_max.models.battle_model import BattleModel
 from meal_max.models.kitchen_model import Meal
 
-
-#Ignore all comments
 @pytest.fixture()
-def battle_model():
-    """Fixture to provide a new instance of BattleModel for each test."""
+def create_battle():
+
+    # Returns a new instance of BattleModel for testing.
     return BattleModel()
 
 @pytest.fixture
-def mock_update_play_count(mocker):
-    """Mock the update_play_count function for testing purposes."""
-    return mocker.patch("meal_max.models.battle_model.update_meal_stats")
+def mock_count(mocker):
 
-"""Fixtures providing sample songs for the tests."""
-@pytest.fixture
-def sample_meal1():
-    return Meal(1, "Ratatouille", "****", 5.40, "LOW")
+     # Mocks the update_meal_stats method for testing.
+    return mocker.patch("meal_max.models.battle_model.update_meal_stats") 
 
 @pytest.fixture
-def sample_meal2():
-    return Meal(2, "Beef Wellington", "*****", 35.10, "HIGH")
+def sample_meal_1():
+
+    # Creates a sample Meal object with specific attributes
+    return Meal(1, 'Meal 1', 'Cuisine 1', 23.00, 'LOW') 
 
 @pytest.fixture
-def sample_battle(sample_meal1, sample_meal2):
-    return [sample_meal1, sample_meal2]
+def sample_meal_2():
 
-def test_prep_combatant(battle_model, sample_meal1):
-    """Test adding a song to the playlist."""
-    battle_model.prep_combatant(sample_meal1)
-    assert len(battle_model.combatants) == 1
-    assert battle_model.combatants[0].meal == 'Ratatouille'
+    # Creates another sample Meal object with different attributes
+    return Meal(2, 'Meal 2', 'Cuisine 2', 27.00, 'MED') 
 
-def test_too_many_meals(battle_model, sample_battle):
-    battle_model.combatants.extend(sample_battle)
-    with pytest.raises(ValueError, match="Attempted to add combatant Ratatouille but combatants list is full"):
-        battle_model.prep_combatant(sample_battle, sample_meal1)
+@pytest.fixture
+def collection(sample_meal_1, sample_meal_2):
+
+    # Returns a list containing the two sample meals for use in tests
+    return [sample_meal_1, sample_meal_2]  
+
+def test_first_win(create_battle, sample_meal_1, sample_meal_2, mock_count, mocker):
+    """Confirm that sample_meal_1 is the battle's winner."""
+
+    # Sets the fighters for the battle
+    create_battle.combatants = [sample_meal_1, sample_meal_2]
+
+    # Mocks the get_battle_score method to return predefined scores
+    mocker.patch.object(create_battle, 'get_battle_score', side_effect=[90, 85]) 
+
+    # Mocks the get_random function to return a constant value
+    mocker.patch("meal_max.models.battle_model.get_random", return_value=0.02) 
+
+     # Starts the battle and determines the winner
+    winner = create_battle.battle()
+
+    # Asserts that sample_meal_1 won
+    assert winner == sample_meal_1.meal, f"Predicted winner is {sample_meal_1.meal}, but got {winner}" 
+
+    # Asserts that sample_meal_1's win count was updated
+    mock_count.assert_any_call(sample_meal_1.id, 'win')
+
+    # Asserts that sample_meal_2's loss count was updated
+    mock_count.assert_any_call(sample_meal_2.id, 'loss')
+
+    # Asserts that only one fighter remains
+    assert len(create_battle.combatants) == 1 
+
+    # Asserts that the remaining fighter is sample_meal_1
+    assert create_battle.combatants[0] == sample_meal_1 
+
+def test_second_win(create_battle, sample_meal_1, sample_meal_2, mock_count, mocker):
+    """Confirm that sample_meal_2 is the battle's winner."""
+
+    # Sets the fighters for the battle
+    create_battle.combatants = [sample_meal_1, sample_meal_2]
+
+    # Mocks the get_battle_score method for the second battle
+    mocker.patch.object(create_battle, 'get_battle_score', side_effect=[85, 90]) 
+
+    # Mocks the random value for battle calculation
+    mocker.patch("meal_max.models.battle_model.get_random", return_value=0.05)
+
+    # Starts the battle and determines the winner
+    winner = create_battle.battle()
+
+    # Asserts that sample_meal_2 won
+    assert winner == sample_meal_2.meal, f"Predicted winner is {sample_meal_2.meal}, but got {winner}" 
+
+    # Asserts that sample_meal_2's win count was updated
+    mock_count.assert_any_call(sample_meal_2.id, 'win') 
+
+    # Asserts that sample_meal_1's loss count was updated
+    mock_count.assert_any_call(sample_meal_1.id, 'loss') 
+    
+    # Asserts that only one fighter remains
+    assert len(create_battle.combatants) == 1
+
+    # Asserts that the remaining fighter is sample_meal_2
+    assert create_battle.combatants[0] == sample_meal_2 
+
+def test_get_score(create_battle, sample_meal_1):
+    """Sees calculation of score for a fighter."""
+
+    # Calculates the score for sample_meal_1
+    score = create_battle.get_battle_score(sample_meal_1)
+
+    # Calculates the expected score based on the meal's attributes
+    calculated_score = (sample_meal_1.price * len(sample_meal_1.cuisine)) - 3 
+
+    # Asserts that the calculated score matches the expected score
+    assert score == calculated_score, f"Predicted score {calculated_score}, got {score}" 
+
+def test_empty_one_fighter(create_battle, sample_meal_1):
+    """Test deleting all fighters when one in list"""
+
+    # Sets the fighter to be sample_meal_1
+    create_battle.combatants = [sample_meal_1] 
+
+    # Clears the list of fighters
+    create_battle.clear_combatants() 
+
+    # Asserts that the fighters list is empty
+    assert len(create_battle.combatants) == 0, "Expected an empty fighter list after clear"
+
+def test_empty_many_fighters(create_battle, sample_meal_1, sample_meal_2):
+    """Test deleting all fighters when many are in list."""
+
+    # Sets the fighters to be sample_meal_1 and sample_meal_2
+    create_battle.combatants = [sample_meal_1, sample_meal_2]  
+
+    # Clears the list of fighters
+    create_battle.clear_combatants() 
+
+    # Asserts that the fighters list is empty
+    assert len(create_battle.combatants) == 0, "Expected an empty fighter list after clear"
+
+def test_empty_fighter(create_battle):
+    """Test deleting fighters when list is empty."""
+
+    # Sets the fighters list to be empty
+    create_battle.combatants = []
+
+    # Clears the list of fighters (no effect)
+    create_battle.clear_combatants()
+
+    # Asserts that the fighters list remains empty
+    assert len(create_battle.combatants) == 0, "Expected an empty fighter list after clear"
 
 
-##################################################
-# Song Retrieval Test Cases
-##################################################
+def test_all_fighters(create_battle, sample_meal_1, sample_meal_2):
+    """Confirms retrieval of all combatants from a list."""
 
-def test_get_battle_score(battle_model, sample_battle):
-    """Test successfully retrieving a song from the playlist by track number."""
-    battle_model.combatants.extend(sample_battle)
-    assert battle_model.get_battle_score(sample_battle[0]) == 58.5
-    assert battle_model.get_battle_score(sample_battle[1]) == 21.6
+    # Sets the fighters to be sample_meal_1 and sample_meal_2.
+    create_battle.combatants = [sample_meal_1, sample_meal_2] 
 
+    # Retrieves the list of fighters.
+    combatants = create_battle.get_combatants()
 
-def test_get_all_meals(battle_model, sample_battle):
-    """Test successfully retrieving all songs from the playlist."""
-    battle_model.combatants.extend(sample_battle)
+    # Asserts that two fighters are present.
+    assert len(combatants) == 2
 
-    all_meals = battle_model.get_combatants()
-    assert len(all_meals) == 2
-    assert all_meals[0].id == 1
-    assert all_meals[1].id == 2
+    # Asserts that the first fighter is sample_meal_1.
+    assert combatants[0].id == 1
 
+    # Asserts that the second fighter is sample_meal_2.
+    assert combatants[1].id == 2  
 
-'''
-def test_get_song_by_song_id(battle_model, sample_meal1):
-    """Test successfully retrieving a song from the playlist by song ID."""
-    battle_model.prep_combatant(sample_meal1)
+def test_one_fighter(create_battle, sample_meal_1):
+    """Confirms retrieval of all fighters even though only one exists"""
 
-    retrieved_song = battle_model.get_song_by_song_id(1)
+    # Sets the fighter to be sample_meal_1
+    create_battle.combatants = [sample_meal_1]
 
-    assert retrieved_song.id == 1
-    assert retrieved_song.title == 'Song 1'
-    assert retrieved_song.artist == 'Artist 1'
-    assert retrieved_song.year == 2022
-    assert retrieved_song.duration == 180
-    assert retrieved_song.genre == 'Pop'
+    # Gets the list of fighters
+    combatants = create_battle.get_combatants()
 
-def test_get_current_song(battle_model, sample_playlist):
-    """Test successfully retrieving the current song from the playlist."""
-    battle_model.playlist.extend(sample_playlist)
+    # Asserts that only one fighter is present
+    assert len(combatants) == 1 
 
-    current_song = battle_model.get_current_song()
-    assert current_song.id == 1
-    assert current_song.title == 'Song 1'
-    assert current_song.artist == 'Artist 1'
-    assert current_song.year == 2022
-    assert current_song.duration == 180
-    assert current_song.genre == 'Pop'
+    # Asserts that the only fighter is sample_meal_1
+    assert combatants[0].id == 1 
 
-def test_get_playlist_length(battle_model, sample_playlist):
-    """Test getting the length of the playlist."""
-    battle_model.playlist.extend(sample_playlist)
-    assert battle_model.get_playlist_length() == 2, "Expected playlist length to be 2"
+def test_prep_battle_many_fighters(create_battle, sample_meal_1, sample_meal_2):
+    """checks if prep for both fighters is successful"""
 
-def test_get_playlist_duration(battle_model, sample_playlist):
-    """Test getting the total duration of the playlist."""
-    battle_model.playlist.extend(sample_playlist)
-    assert battle_model.get_playlist_duration() == 335, "Expected playlist duration to be 360 seconds"
+    # Prepares sample_meal_1 for battle
+    create_battle.prep_combatant(sample_meal_1)  
 
+    # Prepares sample_meal_2 for battle
+    create_battle.prep_combatant(sample_meal_2)
 
-'''
+    # Asserts that two fighters are prepared
+    assert len(create_battle.combatants) == 2 
+
+    # Asserts that the prepared fighters are sample_meal_1 and sample_meal_2
+    assert create_battle.combatants == [sample_meal_1, sample_meal_2]
+
+def test_prep_battle_one_fighter(create_battle, sample_meal_1):
+    """checks if prep for one fighter is successful"""
+
+    # Prepares sample_meal_1 for battle
+    create_battle.prep_combatant(sample_meal_1)
+
+    # Asserts that only one fighter is prepared
+    assert len(create_battle.combatants) == 1 
+
+    # Asserts that the prepared fighter is sample_meal_1
+    assert create_battle.combatants == [sample_meal_1]
